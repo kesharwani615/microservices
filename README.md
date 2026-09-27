@@ -56,6 +56,7 @@ This single business flow is split across multiple independent services.
    |          |          |         |          |           |               |
    |          |          |         |          |           |               |
  AuthDB   ProductDB   CartDB   OrderDB  InventoryDB  PaymentDB   NotificationDB
+ (Mongo)   (Mongo)    (Mongo)  (Mongo)    (Mongo)      (Mongo)       (Mongo)
                                   |
                               RabbitMQ
                                   |
@@ -164,8 +165,8 @@ Examples: send email, reduce stock, analytics.
 | Language | TypeScript |
 | Runtime | Node.js |
 | Framework | Express.js |
-| ORM | Prisma |
-| Database | MySQL (one DB per service) |
+| ORM | Prisma (v6 for MongoDB support) |
+| Database | MongoDB (one DB per service) |
 | Cache | Redis |
 | Message Broker | RabbitMQ |
 | Auth | JWT + Refresh Token |
@@ -234,20 +235,20 @@ Build **one concept at a time**. Do not implement all services in parallel.
 
 | Phase | Focus | Status |
 |-------|--------|--------|
-| 1 | Project planning + README + folder structure | In progress |
-| 2 | Repo setup, TypeScript tooling, shared basics | Pending |
-| 3 | Docker Compose (MySQL, Redis, RabbitMQ) | Pending |
+| 1 | Project planning + README + folder structure | Done |
+| 2 | Repo setup, TypeScript tooling, shared basics | Done |
+| 3 | Docker Compose (MongoDB, Redis, RabbitMQ) | Done |
 | 4 | Shared library (logger, events, auth utils) | Pending |
-| 5 | Auth Service | Pending |
-| 6 | API Gateway | Pending |
-| 7 | Product Service | Pending |
+| 5 | Auth Service (register/login/refresh/logout) | Done |
+| 6 | API Gateway | Done |
+| 7 | Product Service | Done |
 | 8 | Cart Service | Pending |
 | 9 | Order Service | Pending |
 | 10 | Inventory Service | Pending |
 | 11 | RabbitMQ event wiring | Pending |
 | 12 | Notification Service | Pending |
 | 13 | Payment Service (Stripe + webhooks) | Pending |
-| 14 | Redis (cache, rate limit, sessions) | Pending |
+| 14 | Redis (cache, rate limit, sessions) | Done (cache + rate limit) |
 | 15 | Monitoring, logging correlation, deployment | Pending |
 
 ### Why this order?
@@ -297,19 +298,61 @@ Auth comes first because almost every other service needs a verified user identi
 
 ---
 
-## Getting Started (Phase 1 checklist)
+## Getting Started
 
-- [x] Decide domain: E-commerce
-- [x] List microservices and responsibilities
-- [x] Decide HTTP vs RabbitMQ usage
-- [x] Decide database-per-service strategy
-- [x] Choose tech stack
-- [x] Create root folder structure
-- [x] Add this README
-- [x] `git init`
-- [x] Do **not** write business APIs yet
+### Phase 1 — Planning (done)
+- [x] Domain, services, communication, tech stack, folders, README, git
 
-**Phase 1 complete.** Next: Phase 2 — initialize Auth Service scaffold + Docker Compose for infrastructure.
+### Phase 2 — Auth + Docker (done)
+- [x] Auth Service scaffold (Express + TypeScript + Prisma)
+- [x] MongoDB via Docker Compose (+ Redis, RabbitMQ)
+- [x] Auth APIs: register, login, refresh, logout, me
+
+### Phase 6 — API Gateway (done)
+- [x] Single entry point on port `4000`
+- [x] Proxy `/api/v1/auth/*` → Auth Service
+- [x] CORS + request logging
+
+### Phase 7 — Product Service (done)
+- [x] Product Service on port `4002` with own MongoDB (`product_db`)
+- [x] Product CRUD + search/filter/pagination
+- [x] Gateway proxy `/api/v1/products/*`
+
+### Run locally
+
+```bash
+# 1) Start databases / broker
+docker compose up -d
+
+# 2) Auth service (terminal 1)
+cd services/auth-service
+npm run dev
+
+# 3) Product service (terminal 2)
+cd services/product-service
+npm run prisma:push
+npm run dev
+
+# 4) API Gateway (terminal 3)
+cd gateway
+npm run dev
+```
+
+- Gateway health: `GET http://localhost:4000/health`
+- Register: `POST http://localhost:4000/api/v1/auth/register`
+- Products: `GET/POST http://localhost:4000/api/v1/products`
+- Redis: `docker compose up -d` includes Redis on `6379`
+
+**Next:** Phase 8 — Cart Service.
+
+### MySQL vs MongoDB with Prisma
+
+You do **not** create tables/collections manually.
+
+- **MySQL**: write models in `schema.prisma`, then `prisma migrate dev` creates/updates tables.
+- **MongoDB**: write models in `schema.prisma`, then `prisma db push` syncs collections/indexes.
+
+Prisma 7 does not support MongoDB yet, so this project uses **Prisma 6**.
 
 ---
 
